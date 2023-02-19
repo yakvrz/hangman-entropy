@@ -1,15 +1,20 @@
 pacman::p_load(tidyverse, furrr)
 source("./scripts/utils.R")
 source("./scripts/hangman_funcs.R")
+source("./scripts/analysis_funcs.R")
 options(future.rng.onMisuse = "ignore")
 plan(multisession)
 
 # Parameters
-LANG <- "en"
+LANG <- "sp"
 DROPS <- seq(0.1, 0.9, 0.1)
 DROP_TYPE <- "linear"
 MIN_FREQ <- 1e-7
 LENGTHS <- 4:12
+
+# Extract MECO L1 word list
+load("./data/meco/joint_data_L1_trimmed.rda")
+L1_words <- unique(filter_L1_data(joint.data, LANG)$word)
 
 # Preprocess word frequency tables
 word_data <-
@@ -22,7 +27,8 @@ word_data <-
          length %in% LENGTHS,
          str_detect(word, sprintf("[^%s]", str_flatten(get_alphabet(LANG))), negate = TRUE),
          str_detect(word, "^[ךםןףץ]\\w*", negate = TRUE)) %>%
-  select(-count)
+  select(-count) %>%
+  filter(word %in% L1_words)
 
 # Calculate hangman letter masks
 # bool_masks <- calculate_bool_masks(max(lengths))
@@ -42,5 +48,5 @@ for (DROP in DROPS){
     mutate(entropy = list(as.vector(na.omit(as.numeric(entropy))))) %>%
     ungroup()
   
-  saveRDS(word_entropy_data, sprintf("./output/hangman_entropy/entropy_data_drop_%s_%s_lang_%s.rds", DROP, DROP_TYPE, LANG))
+  saveRDS(word_entropy_data, sprintf("./output/hangman_entropy/meco_L1/entropy_data_drop_%s_%s_lang_%s.rds", DROP, DROP_TYPE, LANG))
 }

@@ -1,7 +1,7 @@
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path)); rm(list=ls()); gc() 
 pacman::p_load(tidyverse, furrr, lme4, lmerTest, broom, broom.mixed, viridis)
-source("utils.R")
-source("analysis_funcs.R")
+source("./scripts/utils.R")
+source("./scripts/analysis_funcs.R")
+plan(multisession)
 
 # Plotting options
 theme_set(theme_bw())
@@ -11,26 +11,22 @@ FIG_H <- 4.5
 
 # Parameters
 DROPS <- seq(0.1, 0.9, 0.1)
-DROP_TYPE <- "quadratic"
+DROP_TYPE <- "linear"
 LANG <- "en"
 LENGTHS <- 4:12
 
 # Load MECO L2 data
-load("./Datasets/MECO/joint_data_L2_trimmed.rda")
+load("./data/meco/joint_data_L2_trimmed.rda")
 L2_data <- filter_L2_data(joint.data) %>% filter(length %in% LENGTHS)
 
 # Load entropy data
 word_entropy_vectors_by_drop <-
-  map(DROPS, function(drop){
-    readRDS(sprintf("./Output/HangmanEntropy/%s/entropy_drop_%s_%s_lang_%s.rds", LANG, drop, DROP_TYPE, LANG)) %>%
-      filter(length %in% LENGTHS) %>%
-      rowwise() %>%
-      mutate(entropy = list(as.vector(na.omit(as.numeric(entropy))))) %>%
-      ungroup()
+  map(DROPS, function(DROP){
+    readRDS(sprintf("./output/hangman_entropy/entropy_data_drop_%s_%s_lang_%s.rds", DROP, DROP_TYPE, LANG)) %>%
+      filter(length %in% LENGTHS)
   })
 
 # Append entropy estimates
-plan(multisession)
 data_by_drop <- future_map(word_entropy_vectors_by_drop, ~join_entropy_data(L2_data, .x))
 
 
@@ -55,27 +51,35 @@ ggplot(firstfix_perf, aes(x = drop, y = est)) +
   geom_line() +
   geom_point() +
   geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper)) +
+  scale_x_continuous(breaks = seq(0, 0.9, 0.1)) +
   labs(x = "Drop",
        y = "Estimate",
-       title = "Drop optimization on first fixation duration (MECO L2)") +
-  scale_x_continuous(breaks = seq(0, 0.9, 0.1)) +
-  theme(aspect.ratio = 1)
+       title = "Drop optimization",
+       subtitle = "First fixation duration (MECO L2)",
+       caption = as.character(firstfix_models[[1]]@call$formula)[3]) +
+  theme(aspect.ratio = 1,
+        plot.caption = element_text(size = 7, hjust = 0))
+ggsave("./figures/drop_optimization/L2/firstfix_coefficient_by_drop_diff_numeric.png", width = FIG_W + 1, height = FIG_H, units = "in")
 
 ggplot(firstfix_perf, aes(x = drop, y = statistic)) +
   geom_line() +
   geom_point() +
+  scale_x_continuous(breaks = seq(0, 0.9, 0.1)) +
   labs(x = "Drop",
        y = "t",
-       title = "Drop optimization on first fixation duration (MECO L2)") +
-  scale_x_continuous(breaks = seq(0, 0.9, 0.1)) +
-  theme(aspect.ratio = 1)
+       title = "Drop optimization",
+       subtitle = "First fixation duration (MECO L2)",
+       caption = as.character(firstfix_models[[1]]@call$formula)[3]) +
+  theme(aspect.ratio = 1,
+        plot.caption = element_text(size = 7, hjust = 0))
+ggsave("./figures/drop_optimization/L2/firstfix_statistic_by_drop_diff_numeric.png", width = FIG_W + 1, height = FIG_H, units = "in")
 
 
 # Refixation -------------------------------------------------------------------------------------------------
 
 refix_models <-
   future_map(data_by_drop,
-      ~glmer(refix ~ firstfix_entropy + log_freq + length + firstfix_center_diff + (1|uniform_id) + (1|word),
+      ~glmer(refix ~ firstfix_entropy + log_freq + length + firstfix_center_diff_fct + (1|uniform_id) + (1|word),
             data = .x, family = "binomial", nAGQ = 0))
 
 refix_summaries <- map(refix_models, ~tidy(.x, conf.int = TRUE))
@@ -92,20 +96,28 @@ ggplot(refix_perf, aes(x = drop, y = est)) +
   geom_line() +
   geom_point() +
   geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper)) +
-  labs(x = "Drop",
-       y = "Estimate",
-       title = "Drop optimization on refixation (MECO L2)") +
   scale_x_continuous(breaks = seq(0, 0.9, 0.1)) +
-  theme(aspect.ratio = 1)
+  labs(x = "Drop",
+       y = "t",
+       title = "Drop optimization",
+       subtitle = "Refixation (MECO L2)",
+       caption = as.character(refix_models[[1]]@call$formula)[3]) +
+  theme(aspect.ratio = 1,
+        plot.caption = element_text(size = 7, hjust = 0))
+ggsave("./figures/drop_optimization/L2/refix_coefficient_by_drop_diff_fct.png", width = FIG_W + 1, height = FIG_H, units = "in")
 
 ggplot(refix_perf, aes(x = drop, y = statistic)) +
   geom_line() +
   geom_point() +
-  labs(x = "Drop",
-       y = "t",
-       title = "Drop optimization on refixation (MECO L2)") +
   scale_x_continuous(breaks = seq(0, 0.9, 0.1)) +
-  theme(aspect.ratio = 1)
+  labs(x = "Drop",
+       y = "z",
+       title = "Drop optimization",
+       subtitle = "Refixation (MECO L2)",
+       caption = as.character(refix_models[[1]]@call$formula)[3]) +
+  theme(aspect.ratio = 1,
+        plot.caption = element_text(size = 7, hjust = 0))
+ggsave("./figures/drop_optimization/L2/refix_statistic_by_drop_diff_fct.png", width = FIG_W + 1, height = FIG_H, units = "in")
 
 
 # First fixation (by length) ---------------------------------------------------
