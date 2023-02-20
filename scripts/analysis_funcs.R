@@ -81,6 +81,7 @@ join_entropy_data <- function(meco_data, entropy_data){
            refix,
            length, length_fct, length_z,
            freq, freq_z, log_freq, log_freq_z,
+           firstfix_land,
            firstfix_center_diff, firstfix_center_diff_fct,
            firstfix_center_dist, firstfix_center_dist_fct,
            firstfix_center_dist_sq,

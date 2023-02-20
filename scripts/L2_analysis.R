@@ -1,7 +1,7 @@
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path)); rm(list=ls()); gc() 
 pacman::p_load(tidyverse, furrr, lme4, lmerTest, broom, broom.mixed, interactions, performance, viridis)
-source("utils.R")
-source("analysis_funcs.R")
+source("./scripts/utils.R")
+source("./scripts/analysis_funcs.R")
+plan(multisession)
 
 # Plotting options
 theme_set(theme_bw())
@@ -16,21 +16,17 @@ LANG <- "en"
 LENGTHS <- 4:12
 
 # Load MECO L2 data
-load("./Datasets/MECO/joint_data_L2_trimmed.rda")
+load("./data/meco/joint_data_L2_trimmed.rda")
 L2_data <- filter_L2_data(joint.data) %>% filter(length %in% LENGTHS)
 
 # Load entropy data
 word_entropy_vectors_by_drop <-
   map(DROPS, function(drop){
-    readRDS(sprintf("./Output/HangmanEntropy/%s/entropy_drop_%s_%s_lang_%s.rds", LANG, drop, DROP_TYPE, LANG)) %>%
-      filter(length %in% LENGTHS) %>%
-      rowwise() %>%
-      mutate(entropy = list(as.vector(na.omit(as.numeric(entropy))))) %>%
-      ungroup()
+    readRDS(sprintf("./output/hangman_entropy/meco_L1/entropy_data_drop_%s_%s_lang_%s.rds", drop, DROP_TYPE, LANG)) %>%
+      filter(length %in% LENGTHS)
   })
 
 # Append entropy estimates
-plan(multisession)
 data_by_drop <- future_map(word_entropy_vectors_by_drop, ~join_entropy_data(L2_data, .x))
 
 
@@ -153,74 +149,91 @@ ggarrange(plotlist = refix_emm_by_length[[8]])
 
 
 # # Fixation-entropy distributions ----------------------------------------------------------------------------------
-# 
-# # First fixation position distribution by length
-# data %>%
-#   group_by(length, firstfix_land) %>%
-#   tally() %>%
-#   drop_na() %>%
-#   group_by(length) %>%
-#   mutate(proportion = n/sum(n),
-#          length = factor(length)) %>%
-#   ggplot(aes(x = firstfix_land, y = proportion, color = length)) +
-#   geom_point() +
-#   geom_line() +
-#   labs(title = "Distribution of first fixation positions",
-#        y = "Proportion",
-#        x = "First fixation position") +
-#   scale_x_continuous(breaks = seq(0, MAX_LENGTH, 1)) +
-#   scale_color_discrete(name = "Length", type = inferno(10)) +
-#   theme_bw() +
-#   theme(aspect.ratio = 1)
-# 
-# # Second fixation position distribution by length
-# data %>%
-#   group_by(length, secondfix_land) %>%
-#   tally() %>%
-#   drop_na() %>%
-#   group_by(length) %>%
-#   mutate(proportion = n/sum(n),
-#          length = factor(length)) %>%
-#   ggplot(aes(x = secondfix_entropy, y = proportion, color = length)) +
-#   geom_point() +
-#   geom_line() +
-#   labs(title = "Distribution of second fixation positions",
-#        y = "Proportion",
-#        x = "Second fixation position") +
-#   scale_x_continuous(breaks = seq(0, MAX_LENGTH, 1)) +
-#   scale_color_discrete(name = "Length", type = inferno(10)) +
-#   theme_bw() +
-#   theme(aspect.ratio = 1)
-# 
-# 
-# data1 <-
-#   data %>%
-#   drop_na(secondfix_entropy) %>%
-#   pivot_longer(cols = c("firstfix_entropy", "secondfix_entropy"),
-#                names_to = "fixation",
-#                values_to = "fixation_entropy")
-# 
-# data2 <-
-#   data %>%
-#   drop_na(secondfix_entropy) %>%
-#   pivot_longer(cols = c("firstfix_land", "secondfix_land"),
-#                names_to = "fixation",
-#                values_to = "fixation_land")
-# 
-# data1 %>% group_by(fixation) %>% tally()
-# 
-# data2 %>%
-#   ggplot(aes(x = fixation_land, y = after_stat(density), color = fixation)) +
-#   facet_wrap(~length) +
-#   geom_histogram(position = "dodge")
-# 
-# hist(data1$firstfix_entropy)
-# hist(data$secondfix_entropy)
-# 
-# # Statistics
-# t.test(data$firstfix_land, data$secondfix_land)
-# t.test(data$firstfix_entropy, data$secondfix_entropy)
-# var.test(data$firstfix_land, data$secondfix_land)
-# var.test(data$firstfix_entropy, data$secondfix_entropy)
-# 
+
+data <- data_by_drop[[1]]
+
+data %>%
+  mutate(length = factor(length)) %>%
+  group_by(firstfix_land, length) %>%
+  summarize(mean_firstfix_entropy = mean(firstfix_entropy)) %>%
+  ggplot(aes(x = firstfix_land, y = mean_firstfix_entropy, color = length)) +
+  geom_smooth() +
+  labs(title = "Distribution of first fixation positions",
+       y = "Proportion",
+       x = "First fixation position") +
+  scale_x_continuous(breaks = seq(0, MAX_LENGTH, 1)) +
+  scale_color_discrete(name = "Length", type = inferno(10)) +
+  theme_bw() +
+  theme(aspect.ratio = 1)
+
+
+# First fixation position distribution by length
+data %>%
+  group_by(length, firstfix_land) %>%
+  tally() %>%
+  drop_na() %>%
+  group_by(length) %>%
+  mutate(proportion = n/sum(n),
+         length = factor(length)) %>%
+  ggplot(aes(x = firstfix_land, y = proportion, color = length)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Distribution of first fixation positions",
+       y = "Proportion",
+       x = "First fixation position") +
+  scale_x_continuous(breaks = seq(0, MAX_LENGTH, 1)) +
+  scale_color_discrete(name = "Length", type = inferno(10)) +
+  theme_bw() +
+  theme(aspect.ratio = 1)
+
+# Second fixation position distribution by length
+data %>%
+  group_by(length, secondfix_land) %>%
+  tally() %>%
+  drop_na() %>%
+  group_by(length) %>%
+  mutate(proportion = n/sum(n),
+         length = factor(length)) %>%
+  ggplot(aes(x = secondfix_entropy, y = proportion, color = length)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Distribution of second fixation positions",
+       y = "Proportion",
+       x = "Second fixation position") +
+  scale_x_continuous(breaks = seq(0, MAX_LENGTH, 1)) +
+  scale_color_discrete(name = "Length", type = inferno(10)) +
+  theme_bw() +
+  theme(aspect.ratio = 1)
+
+
+data1 <-
+  data %>%
+  drop_na(secondfix_entropy) %>%
+  pivot_longer(cols = c("firstfix_entropy", "secondfix_entropy"),
+               names_to = "fixation",
+               values_to = "fixation_entropy")
+
+data2 <-
+  data %>%
+  drop_na(secondfix_entropy) %>%
+  pivot_longer(cols = c("firstfix_land", "secondfix_land"),
+               names_to = "fixation",
+               values_to = "fixation_land")
+
+data1 %>% group_by(fixation) %>% tally()
+
+data2 %>%
+  ggplot(aes(x = fixation_land, y = after_stat(density), color = fixation)) +
+  facet_wrap(~length) +
+  geom_histogram(position = "dodge")
+
+hist(data1$firstfix_entropy)
+hist(data$secondfix_entropy)
+
+# Statistics
+t.test(data$firstfix_land, data$secondfix_land)
+t.test(data$firstfix_entropy, data$secondfix_entropy)
+var.test(data$firstfix_land, data$secondfix_land)
+var.test(data$firstfix_entropy, data$secondfix_entropy)
+
 

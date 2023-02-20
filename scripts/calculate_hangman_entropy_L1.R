@@ -6,7 +6,7 @@ options(future.rng.onMisuse = "ignore")
 plan(multisession)
 
 # Parameters
-LANG <- "sp"
+LANG <- "en"
 DROPS <- seq(0.1, 0.9, 0.1)
 DROP_TYPE <- "linear"
 MIN_FREQ <- 1e-7
@@ -27,26 +27,22 @@ word_data <-
          length %in% LENGTHS,
          str_detect(word, sprintf("[^%s]", str_flatten(get_alphabet(LANG))), negate = TRUE),
          str_detect(word, "^[ךםןףץ]\\w*", negate = TRUE)) %>%
-  select(-count) %>%
-  filter(word %in% L1_words)
+  select(-count)
 
 # Calculate hangman letter masks
 # bool_masks <- calculate_bool_masks(max(lengths))
 bool_masks <- readRDS("./output/hangman_masks/bool_masks.rds")
 
 # Calculate orthographic-lexical entropy by position
-for (DROP in DROPS){
+for (drop in DROPS){
   # bool_mask_probs <- calculate_bool_mask_probs(DROP, MAX_LENGTH)
-  bool_mask_probs <- readRDS(sprintf("./output/hangman_masks/bool_mask_probs_drop_%s.rds", DROP))
-  
+  bool_mask_probs <- readRDS(sprintf("./output/hangman_masks/bool_mask_probs_drop_%s.rds", drop))
   word_entropy_data <-
     word_data %>%
-    mutate(entropy = future_map_dfr(word,
-                                    ~hangman_entropy(.x, word_data, DROP, DROP_TYPE, bool_masks, bool_mask_probs),
-                                    .progress = TRUE)) %>%
+    filter(word %in% L1_words) %>%
+    mutate(entropy = future_map_dfr(word, ~hangman_entropy(.x, word_data, drop, DROP_TYPE, bool_masks, bool_mask_probs), .progress = TRUE)) %>%
     rowwise() %>%
     mutate(entropy = list(as.vector(na.omit(as.numeric(entropy))))) %>%
     ungroup()
-  
-  saveRDS(word_entropy_data, sprintf("./output/hangman_entropy/meco_L1/entropy_data_drop_%s_%s_lang_%s.rds", DROP, DROP_TYPE, LANG))
+  saveRDS(word_entropy_data, sprintf("./output/hangman_entropy/meco_L1/entropy_data_drop_%s_%s_lang_%s.rds", drop, DROP_TYPE, LANG))
 }
