@@ -1,13 +1,12 @@
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path)); rm(list=ls()); gc()
 pacman::p_load(tidyverse, furrr, data.table, viridis)
-source("classifier_funcs.R")
+source("./scripts/classifier_functions.R")
 options(future.rng.onMisuse = "ignore")
 
 # Plotting options
 theme_set(theme_bw())
 theme_update(aspect.ratio = 1)
-FIG_H <- 4.5
-FIG_W <- 6.5
+FIG_H <- 3
+FIG_W <- 4
 
 # Parameters
 LANGS <- c("en", "he", "sp")
@@ -18,7 +17,7 @@ DROP <- 0.1
 CENTERING <- c("none", "length")
 
 entropy_long <-
-  readRDS(sprintf("./Output/HangmanEntropy/entropy_long_drop_%s.rds", DROP)) %>%
+  readRDS(sprintf("./output/hangman_entropy/full_corpus/entropy_long_drop_%s.rds", DROP)) %>%
   filter(centering %in% CENTERING,
          length %in% LENGTHS)
 
@@ -55,7 +54,7 @@ perf <- future_pmap(as.list(grid), ~language_classifier(word_entropy_vectors,
                                                         center = ..3,
                                                         sample_size = ..4,
                                                         iterations = ITERATIONS))
-saveRDS(perf, "./Output/Classifier/hangman_entropy_classifier_perf.rds")
+saveRDS(perf, sprintf("./output/classifier/hangman_entropy_classifier_perf_iter_%s.rds", ITERATIONS))
 
 summarized_perf <-
   data.frame(grid) %>%
@@ -64,6 +63,13 @@ summarized_perf <-
       LANGS[which_min_break_ties(error_by_lang)] == curr_lang
     }) %>% mean()
   })) %>%
+  group_by(target_length, sample_size, centering) %>%
+  summarize(mean_accuracy = mean(accuracy)) %>%
+  ungroup()
+
+summarized_perf <-
+  readRDS(sprintf("./output/classifier/hangman_entropy_classifier_summarized_perf_by_error_type_iter_%s.rds", ITERATIONS)) %>%
+  filter(error_type == "sample_MAE") %>%
   group_by(target_length, sample_size, centering) %>%
   summarize(mean_accuracy = mean(accuracy)) %>%
   ungroup()
@@ -77,11 +83,13 @@ summarized_perf %>%
   geom_point(size = .6) +
   scale_color_discrete(name = "length") +
   ylim(0.6, 1) +
-  labs(title = "Classifier performance",
-       subtitle = sprintf("predictor: orthographic-lexical entropy\ndrop: %s\niterations: %s", DROP, ITERATIONS),
-       x = "sample size",
-       y = "mean accuracy")
-ggsave("./Figures/Classifier/hangman_entropy_classifier.pdf", height = FIG_H, width = FIG_W, units = "in")
+  labs(
+    # title = "Classifier performance",
+    # subtitle = sprintf("predictor: orthographic-lexical entropy\ndrop: %s\niterations: %s", DROP, ITERATIONS),
+    x = "sample size",
+    y = "mean accuracy")
+ggsave(sprintf("./figures/classifier/hangman_entropy_classifier_iter_%s_noncentered.svg", ITERATIONS),
+       height = FIG_H, width = FIG_W, units = "in", scale = 0.9)
 
 # Plot accuracy by sample size (length-centered)
 summarized_perf %>%
@@ -104,12 +112,12 @@ ggsave("./Figures/Classifier/hangman_entropy_classifier_centered.pdf", height = 
 grid <- expand_grid(language = LANGS, target_length = LENGTHS, centering = CENTERING, sample_size = SAMPLE_SIZES)
 plan(multisession)
 perf <- future_pmap(as.list(grid), ~language_classifier_diagnostics(word_entropy_vectors,
-                                                       mean_entropy_vectors,
-                                                       target_lang = ..1,
-                                                       target_length = ..2,
-                                                       center = ..3,
-                                                       sample_size = ..4,
-                                                       iterations = ITERATIONS))
+                                                                    mean_entropy_vectors,
+                                                                    target_lang = ..1,
+                                                                    target_length = ..2,
+                                                                    center = ..3,
+                                                                    sample_size = ..4,
+                                                                    iterations = ITERATIONS))
 
 accuracy_by_error_type <-
   map2(perf, grid$language, function(all_errors, curr_lang){

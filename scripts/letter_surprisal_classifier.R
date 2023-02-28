@@ -1,13 +1,12 @@
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path)); rm(list=ls()); gc()
 pacman::p_load(tidyverse, furrr, data.table, viridis)
-source("classifier_funcs.R")
+source("./scripts/classifier_functions.R")
 options(future.rng.onMisuse = "ignore")
 
 # Plotting options
 theme_set(theme_bw())
 theme_update(aspect.ratio = 1)
-FIG_H <- 4.5
-FIG_W <- 6.5
+FIG_H <- 3
+FIG_W <- 4
 
 # Parameters
 LANGS <- c("en", "he", "sp")
@@ -17,7 +16,7 @@ ITERATIONS <- 5000
 CENTERING <- c("none", "length")
 
 surp_long <-
-  map_dfr(LANGS, ~readRDS(sprintf("./Output/LetterSurprisal/letter_surprisal_lang_%s.rds", .x))) %>%
+  map_dfr(LANGS, ~readRDS(sprintf("./output/letter_surprisal/letter_surprisal_lang_%s.rds", .x))) %>%
   filter(length %in% LENGTHS) %>%
   relocate(lang) %>%
   pivot_longer(starts_with("V"), names_to = "pos", values_to = "surp", names_prefix = "V") %>%
@@ -28,7 +27,7 @@ surp_long <-
   ungroup() %>%
   pivot_longer(c("surp", "centered_surp"), names_to = "centering", values_to = "surp") %>%
   mutate(centering = factor(centering, labels = c("length", "none")))
-  
+
 word_surp_vectors <-
   surp_long %>%
   pivot_wider(names_from = "pos", values_from = "surp", names_prefix = "V") %>%
@@ -62,7 +61,8 @@ perf <- future_pmap(as.list(grid), ~language_classifier(word_surp_vectors,
                                                         center = ..3,
                                                         sample_size = ..4,
                                                         iterations = ITERATIONS))
-saveRDS(perf, "./Output/Classifier/letter_surprisal_classifier_perf.rds")
+saveRDS(perf, sprintf("./output/classifier/letter_surprisal_classifier_perf_iter_%s.rds", ITERATIONS))
+perf <- readRDS(sprintf("./output/classifier/letter_surprisal_classifier_perf_iter_%s.rds", ITERATIONS))
 
 summarized_perf <-
   data.frame(grid) %>%
@@ -84,11 +84,13 @@ summarized_perf %>%
   geom_point(size = .6) +
   scale_color_discrete(name = "length") +
   ylim(0.6, 1) +
-  labs(title = "Classifier performance",
-       subtitle = sprintf("predictor: letter transition surprisal\niterations: %s", ITERATIONS),
-       x = "sample size",
-       y = "mean accuracy")
-ggsave("./Figures/Classifier/letter_surprisal_classifier.pdf", height = FIG_H, width = FIG_W, units = "in")
+  labs(
+    # title = "Classifier performance",
+    # subtitle = sprintf("predictor: letter transition surprisal\niterations: %s", ITERATIONS),
+    x = "sample size",
+    y = "mean accuracy")
+ggsave(sprintf("./figures/classifier/letter_surprisal_classifier_iter_%s_noncentered.svg", ITERATIONS),
+       height = FIG_H, width = FIG_W, units = "in", scale = 0.9)
 
 # Plot accuracy by sample size (length-centered)
 summarized_perf %>%

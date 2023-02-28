@@ -1,6 +1,6 @@
 pacman::p_load(tidyverse, furrr, lme4, lmerTest, broom, broom.mixed, viridis)
-source("./scripts/utils.R")
-source("./scripts/analysis_funcs.R")
+source("./scripts/utility_functions.R")
+source("./scripts/analysis_functions.R")
 plan(multisession)
 
 # Plotting options
@@ -12,7 +12,7 @@ FIG_H <- 4.5
 # Parameters
 DROPS <- seq(0.05, 0.95, 0.05)
 DROP_TYPE <- "linear"
-LENGTHS <- 4:12
+LENGTHS <- 7:12
 
 # Load MECO L2 data
 load("./data/meco/joint_data_L2_trimmed.rda")
@@ -20,8 +20,8 @@ L2_data <- filter_L2_data(joint.data) %>% filter(length %in% LENGTHS)
 
 # Load entropy data
 word_entropy_vectors_by_drop <-
-  map(DROPS, function(DROP){
-    readRDS(sprintf("./output/hangman_entropy/meco_words/entropy_data_drop_%s_%s_lang_en.rds", DROP, DROP_TYPE)) %>%
+  map(DROPS, function(drop){
+    readRDS(sprintf("./output/hangman_entropy/meco_words/entropy_data_drop_%s_%s_lang_en.rds", drop, DROP_TYPE)) %>%
       filter(length %in% LENGTHS)
   })
 
@@ -35,7 +35,6 @@ firstfix_models <-
   future_map(data_by_drop,
              ~lmer(log_firstfix_dur ~ firstfix_entropy_z + log_freq + length + firstfix_center_diff_fct + (1|uniform_id) + (1|word),
                    data = .x))
-saveRDS(firstfix_models, "./models/meco_L2/firstfix_dur_by_firstfix_entropy_all_drops.rds")
 
 firstfix_summaries <- map(firstfix_models, ~tidy(.x, conf.int = TRUE))
 
@@ -56,7 +55,8 @@ ggplot(firstfix_perf, aes(x = drop, y = est)) +
        y = bquote(beta),
        title = "Drop optimization",
        subtitle = "First fixation duration (MECO L2)")
-ggsave("./figures/drop_optimization/meco_L2/firstfix_coefficient_by_drop.png", width = FIG_W + 1, height = FIG_H, units = "in")
+ggsave(sprintf("./figures/drop_optimization/meco_L2/firstfix_coefficient_by_drop_lengths_%s-%s.png", min(LENGTHS), max(LENGTHS)),
+       width = FIG_W + 1, height = FIG_H, units = "in")
 
 ggplot(firstfix_perf, aes(x = drop, y = statistic)) +
   geom_line() +
@@ -66,7 +66,8 @@ ggplot(firstfix_perf, aes(x = drop, y = statistic)) +
        y = "t",
        title = "Drop optimization",
        subtitle = "First fixation duration (MECO L2)")
-ggsave("./figures/drop_optimization/meco_L2/firstfix_statistic_by_drop.png", width = FIG_W + 1, height = FIG_H, units = "in")
+ggsave(sprintf("./figures/drop_optimization/meco_L2/firstfix_statistic_by_drop_lengths_%s-%s.png", min(LENGTHS), max(LENGTHS)),
+       width = FIG_W + 1, height = FIG_H, units = "in")
 
 
 # Refixation rate --------------------------------------------------------------
@@ -75,7 +76,6 @@ refix_models <-
   future_map(data_by_drop,
       ~glmer(refix ~ firstfix_entropy_z + log_freq + length + firstfix_center_diff_fct + (1|uniform_id) + (1|word),
             data = .x, family = "binomial", nAGQ = 0))
-saveRDS(refix_models, "./models/meco_L2/refix_by_firstfix_entropy_all_drops.rds")
 
 refix_summaries <- map(refix_models, ~tidy(.x, conf.int = TRUE))
 
@@ -96,7 +96,8 @@ ggplot(refix_perf, aes(x = drop, y = est)) +
        y = bquote(beta),
        title = "Drop optimization",
        subtitle = "Refixation rate (MECO L2)")
-ggsave("./figures/drop_optimization/meco_L2/refix_coefficient_by_drop.png", width = FIG_W + 1, height = FIG_H, units = "in")
+ggsave(sprintf("./figures/drop_optimization/meco_L2/refix_coefficient_by_drop_lengths_%s-%s.png", min(LENGTHS), max(LENGTHS)),
+       width = FIG_W + 1, height = FIG_H, units = "in")
 
 ggplot(refix_perf, aes(x = drop, y = statistic)) +
   geom_line() +
@@ -106,7 +107,8 @@ ggplot(refix_perf, aes(x = drop, y = statistic)) +
        y = "z",
        title = "Drop optimization",
        subtitle = "Refixation rate (MECO L2)")
-ggsave("./figures/drop_optimization/meco_L2/refix_statistic_by_drop.png", width = FIG_W + 1, height = FIG_H, units = "in")
+ggsave(sprintf("./figures/drop_optimization/meco_L2/refix_statistic_by_drop_lengths_%s-%s.png", min(LENGTHS), max(LENGTHS)),
+       width = FIG_W + 1, height = FIG_H, units = "in")
 
 
 # # First fixation (by length) ---------------------------------------------------

@@ -1,4 +1,3 @@
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path)); rm(list=ls()); gc()
 pacman::p_load(tidyverse, viridis)
 
 # Plotting options
@@ -9,14 +8,16 @@ fig_h <- 6.5
 
 # Data parameters
 LANGS <- c("en", "he", "sp")
-DROP <- 0.3
+DROP <- 0.1
+DROP_TYPE <- "linear"
 
 # Combine entropy data and transform to long format
 entropy_long <-
   map_dfr(LANGS, function(x){
-    readRDS(sprintf("./Output/HangmanEntropy/entropy_drop_%s_lang_%s.rds", DROP, x)) %>%
+    readRDS(sprintf("./output/hangman_entropy/full_corpus/entropy_data_drop_%s_%s_lang_%s.rds", DROP, DROP_TYPE, x)) %>%
       select(-freq) %>%
-      mutate(lang = as.factor(x)) %>%
+      mutate(entropy = data.frame(t(entropy)),
+             lang = as.factor(x)) %>%
       relocate(lang) %>%
       bind_cols(.$entropy) %>%
       as.data.frame() %>%
